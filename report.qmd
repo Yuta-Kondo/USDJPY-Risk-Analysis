@@ -1,0 +1,151 @@
+---
+title: "An Analysis of USD/JPY Exchange Rate Volatility (Risk)"
+author: "Yuta Kondo"
+date: "2025-07-22"
+format: html
+editor: visual
+---
+
+## Introduction
+
+I have been carefully watching the exchange rate between the Japanese Yen (JPY) versus the U.S. Dollar (USD) and Canadian Dollar (CAD) since I have lived in Canada since 2022, but my financial assets have been denominated in JPY. The big problem is that the JPY has been fluctuating a lot since 2022, and it is becoming weaker now. This can be attributed to several intricate factors such as Japan's low-interest-rate policy compared to other developed countries, its underlying economic weakness that prevents the central bank from raising its interest rate, the trade deficit, etc. Observing the exchange rate, I intuitively feel that the JPY is fluctuating, but as a science student, I want to quantify this phenomenon.
+
+This report investigates and quantifies the volatility of the USD/JPY exchange rate, as the USD is considered the base currency in the world and is the most traded pair involving the JPY. To do this, I am going to use a **GARCH (Generalized Autoregressive Conditional Heteroscedasticity)** model. A secondary objective of this project is to demonstrate my knowledge of **time series analysis** and **basic coding skills**.
+
+## Data and Stylized Facts
+
+The data used in this report is the daily USD/JPY exchange rate, sourced from the **Federal Reserve Economic Data (FRED)** database (Symbol: `DEXJPUS`). The dataset spans from July 13, 2015, to the present. You can access the data directly at: [https://fred.stlouisfed.org/series/DEXJPUS](https://fred.stlouisfed.org/series/DEXJPUS).
+
+To conduct the analysis, I first converted the daily prices into a time series of log returns. This is a standard step that transforms the non-stationary price series into a stationary one, which is a necessary condition for this type of modeling. The log return at time *t* is calculated as:
+
+$$\text{Return}_t = \ln\left(\frac{\text{Price}_t}{\text{Price}_{t-1}}\right) \times 100$$
+
+The resulting series of log returns is shown below. The plot shows **volatility clustering**. There are clear periods where large price changes (both positive and negative) are followed by other large changes, and periods of relative calm where changes are small.
+
+```{r}
+#| label: fig-returns
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-cap: "Daily log returns of the USD/JPY exchange rate, showing periods of high and low volatility."
+
+# Load required libraries
+library(tseries)
+library(knitr)
+
+# Load the data, assuming the CSV has DATE and DEXJPUS columns
+jpy_data <- read.csv("DEXJPUS.csv", header = TRUE, na.strings = ".")
+jpy_data <- na.omit(jpy_data) # Remove rows with missing values (weekends/holidays)
+
+# Create a time series object for the price
+price <- ts(jpy_data$DEXJPUS)
+
+# Calculate log returns and remove the first NA value
+returns <- diff(log(price)) * 100
+
+plot(returns, main = "USD/JPY Log Returns", ylab = "Return (%)",
+     xlab = "Time")
+```
+
+To statistically confirm the presence of volatility clustering, I examined the autocorrelation of the returns and the squared returns. While the returns themselves show almost no serial correlation (as expected in an efficient market), the squared returns are significantly autocorrelated. This is a commonly observed financial time series and it justifies the use of a GARCH model.
+
+A **Ljung-Box test** on the squared returns confirms this observation with an extremely small p-value, indicating that the variance is not constant over time.
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# Formal test for ARCH effects
+Box.test(returns^2, lag = 12, type = "Ljung-Box")
+```
+
+## GARCH(1,1) Model Estimation
+
+Based on the evidence of volatility clustering, I specified and estimated a **GARCH(1,1)** model. This model is the industry standard for capturing time-varying volatility. The model estimates tomorrow's variance based on a long-term average variance, the size of yesterday's shock (the squared return), and yesterday's variance forecast.
+
+The estimated coefficients for the fitted model are shown below.
+
+```{r}
+#| label: tbl-coeffs
+#| echo: false
+#| warning: false
+#| message: false
+
+# Specify and estimate the GARCH(1,1) model
+garch_model <- garch(returns, order = c(1, 1))
+
+# Display the coefficients in a clean table
+knitr::kable(
+  summary(garch_model)$coef,
+  col.names = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"),
+  caption = "GARCH(1,1) Model Coefficients"
+)
+```
+
+All three coefficients (`a0`, `a1`, `b1`) are highly statistically significant, as indicated by their very small p-values. The sum of the ARCH (`a1`) and GARCH (`b1`) coefficients is **`r round(summary(garch_model)$coef[2,1] + summary(garch_model)$coef[3,1], 3)`**. This value is extremely close to 1, which implies that volatility shocks are **highly persistent** in the USD/JPY market. In practical terms, this means that once a period of high volatility begins, it is expected to last for a long time.
+
+## Model Diagnostics and Interpretation
+
+After fitting the model, it is necessary to check if it has successfully captured the characteristics of the data. This is done by analyzing the model's **standardized residuals**. If the model is a good fit, these residuals should have no remaining volatility clustering.
+
+```{r}
+#| label: fig-acf-resid
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-cap: "ACF of squared standardized residuals from the GARCH model."
+
+# Extract standardized residuals
+std_residuals <- residuals(garch_model)
+std_residuals <- na.omit(std_residuals)
+
+# Check for remaining autocorrelation in squared residuals
+acf(std_residuals^2, main = "ACF of Squared Standardized Residuals")
+```
+
+The Autocorrelation Function (ACF) of the squared standardized residuals shows no significant lags. A formal Ljung-Box test on these residuals yields a large p-value, confirming that the GARCH(1,1) model has effectively captured the time-dependent volatility.
+
+The final plot below visualizes the model's performance. The grey line represents the actual daily returns, while the red lines show the GARCH model's estimate of the conditional standard deviation (the volatility).
+
+```{r}
+#| label: fig-final-plot
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-cap: "Daily returns and the GARCH(1,1) conditional volatility."
+
+# The fitted() function returns a time series object of conditional standard deviations.
+cond_volatility <- fitted(garch_model)
+
+# Use ts.plot() to correctly align and plot the series together.
+ts.plot(returns, cond_volatility, -cond_volatility,
+        main = "USD/JPY Returns and Conditional Volatility",
+        ylab = "Value",
+        gpars = list(col = c("grey", "red", "red")))
+legend("topright", legend = c("Returns", "Conditional SD"),
+       col = c("grey", "red"), lty = 1, bty = "n")
+```
+
+The plot clearly shows the model's success. During periods of large price swings, the red volatility bands widen to reflect increased market risk. In times of stability, the bands narrow. This dynamic measure of risk is the key output of the GARCH model and provides a much deeper understanding of market behavior than looking at prices alone.
+
+## Conclusion
+
+This analysis tried to quantify the changing risk in the USD/JPY exchange rate, motivated by recent economic uncertainty. The GARCH(1,1) model has proven to be an excellent tool for this purpose.
+
+The main results are twofold. First, the model successfully captures the volatility clustering present in the daily returns. Diagnostic checks confirm this, as the standardized residuals of the model show no remaining ARCH effects, indicating that the time-dependent volatility has been well-explained.
+
+```{r}
+#| label: final-test
+#| echo: false
+#| warning: false
+#| message: false
+
+# Final diagnostic check: Ljung-Box test on squared standardized residuals
+Box.test(std_residuals^2, lag = 12, type = "Ljung-Box")
+```
+
+Second, the analysis shows that volatility in the USD/JPY market is highly persistent. The sum of the ARCH and GARCH coefficients is very close to one, meaning that shocks to the market have a long-lasting effect on risk. Periods of high volatility are likely to be followed by more high volatility, and calm periods are likely to be followed by more calm.
+
+Ultimately, this GARCH model provides a dynamic and statistically robust measure of risk that is far more insightful than simply observing price charts. It fulfills the project's objective by transforming a general concern about currency fluctuation into a quantifiable and interpretable model of market volatility.
+
