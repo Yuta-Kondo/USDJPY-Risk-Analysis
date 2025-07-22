@@ -296,17 +296,13 @@ Figure&nbsp;3: Daily returns and the GARCH(1,1) conditional volatility.
 <h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
 <p>This analysis tried to quantify the changing risk in the USD/JPY exchange rate, motivated by recent economic uncertainty. The GARCH(1,1) model has proven to be an excellent tool for this purpose.</p>
 <p>The main results are twofold. First, the model successfully captures the volatility clustering present in the daily returns. Diagnostic checks confirm this, as the standardized residuals of the model show no remaining ARCH effects, indicating that the time-dependent volatility has been well-explained.</p>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>
-    Box-Ljung test
-
-data:  std_residuals^2
-X-squared = 5.008, df = 12, p-value = 0.9577</code></pre>
-</div>
-</div>
+<pre><code># Final diagnostic check: Ljung-Box test on squared standardized residuals
+Box.test(std_residuals^2, lag = 12, type = "Ljung-Box")
+</code></pre>
 <p>Second, the analysis shows that volatility in the USD/JPY market is highly persistent. The sum of the ARCH and GARCH coefficients is very close to one, meaning that shocks to the market have a long-lasting effect on risk. Periods of high volatility are likely to be followed by more high volatility, and calm periods are likely to be followed by more calm.</p>
-<p>Ultimately, this GARCH model provides a dynamic and statistically robust measure of risk that is far more insightful than simply observing price charts. It fulfills the project’s objective by transforming a general concern about currency fluctuation into a quantifiable and interpretable model of market volatility.</p>
+<p>Ultimately, this GARCH model provides a dynamic and statistically robust measure of risk that is far more insightful than simply observing price charts. It fulfills the project's objective by transforming a general concern about currency fluctuation into a quantifiable and interpretable model of market volatility.</p>
+<hr/>
+<p><strong>View the full R code for this analysis on GitHub:</strong> <a href="https://github.com/Yuta-Kondo/USDJPY-Risk-Analysis/blob/main/analysis.R">analysis.R</a></p>
 </section>
 
 </main>

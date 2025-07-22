@@ -149,3 +149,7 @@ Second, the analysis shows that volatility in the USD/JPY market is highly persi
 
 Ultimately, this GARCH model provides a dynamic and statistically robust measure of risk that is far more insightful than simply observing price charts. It fulfills the project's objective by transforming a general concern about currency fluctuation into a quantifiable and interpretable model of market volatility.
 
+---
+
+**View the full R code for this analysis on GitHub:** [analysis.R](https://github.com/Yuta-Kondo/USDJPY-Risk-Analysis/blob/main/analysis.R)
+
